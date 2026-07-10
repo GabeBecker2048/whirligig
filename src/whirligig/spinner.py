@@ -97,21 +97,18 @@ class Wheel:
         return c
 
 
-# clears the screen
-def clear() -> None:
-    if os.name == 'nt':
-        os.system('cls')
-    else:
-        os.system('clear')
-
-# clears the screen, prints the circle, waits DELAY
-def display(wheel: Wheel, i=-1) -> None:
+# prints the circle in place (overwriting the previous frame if redraw), waits DELAY
+def display(wheel: Wheel, i=-1, redraw=False) -> None:
     wheel = wheel.draw_line(i)
     wheel = wheel.add_labels()
-    clear()
-    print(wheel)
+    lines = str(wheel).split("\n")
     if i != -1:
-        print(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
+        lines.append(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
+    if redraw:
+        # moves the cursor up to the start of the previous frame so we print over it
+        print(f"\033[{len(lines)}A", end="")
+    # \033[K erases any leftover characters from the previous frame on each line
+    print("\n".join(line + "\033[K" for line in lines))
     time.sleep(DELAY)
 
 ## THE MAIN FUNCTION ##
@@ -119,14 +116,26 @@ def display(wheel: Wheel, i=-1) -> None:
 def spin(labels: list[str], w_radius=WHEEL_RADIUS):
     wheel = Wheel(w_radius, labels)
 
-    # full rotations
-    for j in range(random.randint(2, 5)):
-        for i in range(wheel.num_labels):
-            display(wheel, i=i)
+    # enables ANSI escape codes in the legacy Windows console
+    if os.name == 'nt':
+        os.system('')
 
-    # actual choice
-    for i in range(random.randint(1, wheel.num_labels)):
-        display(wheel, i=i)
+    # hides the cursor while animating, always restoring it afterwards
+    print("\033[?25l", end="")
+    try:
+        redraw = False
+
+        # full rotations
+        for j in range(random.randint(2, 5)):
+            for i in range(wheel.num_labels):
+                display(wheel, i=i, redraw=redraw)
+                redraw = True
+
+        # actual choice
+        for i in range(random.randint(1, wheel.num_labels)):
+            display(wheel, i=i, redraw=True)
+    finally:
+        print("\033[?25h", end="")
 
 
 if __name__ == "__main__":
