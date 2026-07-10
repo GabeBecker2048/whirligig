@@ -2,7 +2,13 @@ from math import sin, cos, pi
 from copy import deepcopy
 import os
 import random
+import sys
 import time
+
+try:
+    import termios
+except ImportError:
+    termios = None  # Windows has no termios (and no scroll-to-arrow-keys behavior)
 
 WHEEL_RADIUS = 10
 DELAY = 0.1
@@ -97,18 +103,20 @@ class Wheel:
         return c
 
 
-# prints the circle in place (overwriting the previous frame if redraw), waits DELAY
-def display(wheel: Wheel, i=-1, redraw=False) -> None:
+# renders one frame: the wheel with the spinner pointing at label i, plus the result line
+def render_frame(wheel: Wheel, i: int) -> str:
     wheel = wheel.draw_line(i)
     wheel = wheel.add_labels()
     lines = str(wheel).split("\n")
-    if i != -1:
-        lines.append(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
-    if redraw:
-        # moves the cursor up to the start of the previous frame so we print over it
-        print(f"\033[{len(lines)}A", end="")
-    # \033[K erases any leftover characters from the previous frame on each line
-    print("\n".join(line + "\033[K" for line in lines))
+    lines.append(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
+    return "\n".join(lines)
+
+# draws the frame over the previous one, waits DELAY
+def display(wheel: Wheel, i: int) -> None:
+    frame = render_frame(wheel, i)
+    # \033[H jumps to the top-left of the screen; \033[K erases any leftover
+    # characters from the previous frame on each line
+    print("\033[H" + "\n".join(line + "\033[K" for line in frame.split("\n")))
     time.sleep(DELAY)
 
 ## THE MAIN FUNCTION ##
@@ -120,22 +128,42 @@ def spin(labels: list[str], w_radius=WHEEL_RADIUS):
     if os.name == 'nt':
         os.system('')
 
-    # hides the cursor while animating, always restoring it afterwards
-    print("\033[?25l", end="")
-    try:
-        redraw = False
+    # in the alternate screen, terminals turn mouse scrolls into arrow key
+    # presses on stdin; we never read stdin, so stop the tty from echoing
+    # them onto the wheel while we animate
+    old_tty = None
+    if termios is not None and sys.stdin.isatty():
+        fd = sys.stdin.fileno()
+        old_tty = termios.tcgetattr(fd)
+        new_tty = termios.tcgetattr(fd)
+        new_tty[3] &= ~termios.ECHO
+        termios.tcsetattr(fd, termios.TCSANOW, new_tty)
 
+    # animates in the alternate screen buffer (like vim/less) with the cursor
+    # hidden -- it has no scrollback, so scrolling can't break the redraws;
+    # \033[?1007s + \033[?1007l saves then disables scroll-to-arrow-keys mode;
+    # always restores the terminal state afterwards
+    print("\033[?1007s\033[?1007l\033[?1049h\033[?25l", end="")
+    try:
         # full rotations
         for j in range(random.randint(2, 5)):
             for i in range(wheel.num_labels):
-                display(wheel, i=i, redraw=redraw)
-                redraw = True
+                display(wheel, i=i)
 
         # actual choice
         for i in range(random.randint(1, wheel.num_labels)):
-            display(wheel, i=i, redraw=True)
+            display(wheel, i=i)
     finally:
-        print("\033[?25h", end="")
+        print("\033[?1049l\033[?1007r\033[?25h", end="")
+        if old_tty is not None:
+            # discards any input buffered during the spin (scrolls, keypresses)
+            # so it doesn't leak into the shell prompt, then re-enables echo
+            termios.tcflush(fd, termios.TCIFLUSH)
+            termios.tcsetattr(fd, termios.TCSANOW, old_tty)
+
+    # everything drawn in the alternate screen vanishes when it exits, so
+    # reprint the final frame to the normal screen to keep the result visible
+    print(render_frame(wheel, i))
 
 
 if __name__ == "__main__":
