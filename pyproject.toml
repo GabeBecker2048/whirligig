@@ -1,0 +1,22 @@
+[project]
+name = "whirligig"
+version = "0.1.0"
+description = "A fun wheel spinner for python and CLI"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "GabeBecker2048" },
+]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["wheel", "spinner", "terminal", "ascii", "random", "picker"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Environment :: Console",
+    "Topic :: Games/Entertainment",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.24,<0.9.0"]
+build-backend = "uv_build"
