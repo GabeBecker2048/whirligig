@@ -1,6 +1,6 @@
 [project]
 name = "whirligig"
-version = "0.3.0"
+version = "0.4.0"
 description = "Spin a colorful ASCII wheel of fortune in your terminal, from the CLI or Python"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,3 +32,8 @@ whirligig = "whirligig.cli:main"
 [build-system]
 requires = ["uv_build>=0.8.24,<0.9.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

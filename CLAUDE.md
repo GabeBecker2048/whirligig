@@ -17,10 +17,11 @@ uv sync                                 # create/refresh .venv from uv.lock
 uv run whirligig Pizza Sushi Poke       # run the CLI
 uv run whirligig -r 6 -d 0 heads tails  # small + zero-delay: the fastest way to eyeball a render change
 uv run whirligig -p random              # spin a random preset (coin/dice/clock/alphabet)
+uv run pytest                           # run the test suite
 uv build                                # build sdist + wheel
 ```
 
-There is no test suite, linter, or formatter configured. Verification is visual: run the animation and watch it.
+Tests live in `tests/` and run headlessly: under pytest neither stdout nor stderr is a tty, so the output contract routes the bare label to stdout and skips the animation, which makes validation, exit codes, and the stdout contract all assertable. The animation path itself is exercised through a fake tty stream (see `FakeTty`). No linter or formatter is configured, and changes to the animation still need visual verification: run it and watch it.
 
 ## Architecture
 
@@ -38,6 +39,8 @@ Two consequences worth knowing before editing:
 - `add_labels` colorizes via `str.replace` on rendered rows, so labels that are substrings of each other, or that contain the padding/`*` characters, can mis-colorize. Coordinate math happens *before* the 3x stretch; the `x * 2` terms in `add_labels` compensate for it.
 - Label colors come from `wheel.colors`, a palette shuffled once in `Wheel.__init__` — random per spin, stable across the frames of one spin (deepcopy carries it). Color anything through `wheel.colors[i % len(wheel.colors)]`, never `Colors.colors` directly, or the result line and wheel will disagree.
 - The wheel is drawn to whichever stream `animation_stream()` picks — see the output contract below before adding any `print()`.
+
+**Validation in `spin()`** happens before anything is drawn, in this order: labels must be a non-empty list of single-line strings; `Wheel.fits()` dry-runs label placement (`add_labels(strict=True)`) and refuses overcrowded wheels with a smallest-fitting-radius suggestion (checked even headless, so a command doesn't succeed in a pipeline but fail on a tty); and when there is an animation stream, `frame_size()` is compared against `os.get_terminal_size()` so an oversized frame raises instead of wrapping and ghosting (the failure mode behind the demo-GIF glitches).
 
 **Terminal handling in `spin()`** is the fiddly part and is deliberately defensive. It enters the alternate screen buffer (`\033[?1049h`) with the cursor hidden, disables scroll-to-arrow-key reporting (`\033[?1007l`), and turns off tty `ECHO` via `termios` so mouse scrolls don't paint stray characters onto the wheel. All of that is restored in a `finally` (including a `tcflush` so buffered input doesn't leak into the shell prompt). `termios` is imported guardedly — it does not exist on Windows, where `os.system('')` is used instead to enable ANSI codes in the legacy console. Frames are drawn by jumping home (`\033[H`) and erasing to end-of-line (`\033[K`) per row rather than clearing the screen.
 

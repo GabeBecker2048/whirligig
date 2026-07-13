@@ -89,7 +89,7 @@ result = whirligig.spin(["Pizza", "Sushi", "Mexican", "Thai", "Chicken Wings", "
 It takes the same two options as the CLI, and returns the label it landed on. The call blocks while the wheel animates; pass `delay=0` to skip straight to the result:
 
 ```python
-result = whirligig.spin(["heads", "tails"], w_radius=6, delay=0)
+result = whirligig.spin(["heads", "tails"], radius=6, delay=0)
 ```
 
 ## License
