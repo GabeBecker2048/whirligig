@@ -185,6 +185,11 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
 # given a list, this function will create and print a spinning wheel ASCII
 # animation, and return the label it landed on
 def spin(labels: list[str], w_radius=WHEEL_RADIUS, delay=DELAY) -> str:
+    # the renderer assumes every label occupies one row
+    for label in labels:
+        if any(c in label for c in "\n\r\t"):
+            raise ValueError(f"label {label!r} contains a newline or tab, which would break the wheel's shape")
+
     wheel = Wheel(w_radius, labels)
     choice = random.randrange(wheel.num_labels)
 
