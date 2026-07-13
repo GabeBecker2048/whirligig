@@ -34,6 +34,8 @@ whirligig Pizza Sushi Mexican Thai "Chicken Wings" Poke Burgers
 
 Labels can repeat: each copy is its own slot on the wheel, so repeating a label is an easy way to weight the odds — `whirligig Pizza Pizza Sushi` lands on Pizza twice as often. All copies of the same label share one color, so they read as one choice spread across the wheel.
 
+> **Known quirk:** wide characters — emoji, CJK — occupy two terminal columns where the wheel's geometry counts one, so a 🍕 label can bend the circle slightly. The spin works fine; the wheel just loses a little roundness.
+
 | flag             | default | meaning                                        |
 |------------------|---------|------------------------------------------------|
 | `-r`, `--radius` | `10`    | radius of the wheel, in characters             |
@@ -86,11 +88,13 @@ import whirligig
 result = whirligig.spin(["Pizza", "Sushi", "Mexican", "Thai", "Chicken Wings", "Poke", "Burgers"])
 ```
 
-It takes the same two options as the CLI, and returns the label it landed on. The call blocks while the wheel animates; pass `delay=0` to skip straight to the result:
+It returns the label the wheel landed on, and takes the CLI's knobs as keyword arguments: `radius` (default `10`) is the wheel's size in characters, and `delay` (default `0.1`) is the seconds each frame is held. The call blocks while the wheel animates; pass `delay=0` to skip straight to the result:
 
 ```python
 result = whirligig.spin(["heads", "tails"], radius=6, delay=0)
 ```
+
+Bad input raises `ValueError`: blank or multi-line labels, more labels than the radius can hold (the error suggests one that fits), or a terminal too small for the wheel. Full details live in `help(whirligig.spin)`.
 
 ## License
 

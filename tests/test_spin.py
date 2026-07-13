@@ -64,6 +64,21 @@ def test_multiline_labels_raise(bad):
     with pytest.raises(ValueError, match="newline or tab"):
         whirligig.spin(["fine", bad])
 
+@pytest.mark.parametrize("bad", ["", "   "])
+def test_blank_labels_raise(bad):
+    with pytest.raises(ValueError, match="empty or whitespace-only"):
+        whirligig.spin(["fine", bad])
+
+
+# --- public API surface ---
+
+def test_version_attribute():
+    from importlib.metadata import version
+    assert whirligig.__version__ == version("whirligig")
+
+def test_spin_has_a_docstring():
+    assert "return the winner" in whirligig.spin.__doc__
+
 
 # --- overcrowding ---
 

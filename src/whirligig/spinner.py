@@ -130,7 +130,7 @@ class Wheel:
 
 # the smallest radius at which these labels stop overlapping, or None if even
 # a huge wheel can't hold them; used only to make the overcrowding error useful
-def _smallest_fitting_radius(labels: list[str], start: int):
+def _smallest_fitting_radius(labels: list[str], start: int) -> int | None:
     lo, hi = start, None
     r = start
     while hi is None and r < 1024:
@@ -223,14 +223,37 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
     print(render_frame(wheel, choice), file=stream)
 
 ## THE MAIN FUNCTION ##
-# given a list, this function will create and print a spinning wheel ASCII
-# animation, and return the label it landed on
-def spin(labels: list[str], radius=WHEEL_RADIUS, delay=DELAY) -> str:
+def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) -> str:
+    """Spin an ASCII wheel of the given labels and return the winner.
+
+    The wheel is animated on the terminal — on stdout, or on stderr when
+    stdout is redirected, or not at all when neither is a terminal — and
+    lands on a uniformly random label. When stdout is redirected, the bare
+    winning label is also printed to it, so ``$(whirligig ...)`` captures
+    the result while the animation plays.
+
+    Args:
+        labels: the choices on the wheel. Duplicates each get their own
+            slot (weighting the odds) and share one color.
+        radius: wheel radius in characters (default 10).
+        delay: seconds each animation frame is held (default 0.1);
+            0 skips straight to the result.
+
+    Returns:
+        The label the wheel landed on.
+
+    Raises:
+        ValueError: if ``labels`` is empty, a label is blank or contains a
+            newline or tab, the labels overlap on a wheel of this radius,
+            or the terminal is too small to hold a frame.
+    """
     if not labels:
         raise ValueError("labels must be a non-empty list; there is nothing to spin")
 
-    # the renderer assumes every label occupies one row
+    # the renderer assumes every label occupies one row and is visible
     for label in labels:
+        if not label.strip():
+            raise ValueError("labels must not be empty or whitespace-only; a blank slot would be unreadable on the wheel")
         if any(c in label for c in "\n\r\t"):
             raise ValueError(f"label {label!r} contains a newline or tab, which would break the wheel's shape")
 
