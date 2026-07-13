@@ -3,6 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/whirligig)](https://pypi.org/project/whirligig/)
 [![Python versions](https://img.shields.io/pypi/pyversions/whirligig)](https://pypi.org/project/whirligig/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![CI](https://github.com/GabeBecker2048/whirligig/actions/workflows/test.yml/badge.svg)](https://github.com/GabeBecker2048/whirligig/actions/workflows/test.yml)
 
 Spin a colorful ASCII wheel of fortune in your terminal and let fate decide: what's for lunch, who reviews the PR, heads or tails.
 
@@ -38,7 +39,7 @@ Labels can repeat: each copy is its own slot on the wheel, so repeating a label 
 
 | flag             | default | meaning                                        |
 |------------------|---------|------------------------------------------------|
-| `-r`, `--radius` | `10`    | radius of the wheel, in characters             |
+| `-r`, `--radius` | `10`    | radius of the wheel, in characters (2–100)     |
 | `-d`, `--delay`  | `0.1`   | seconds each frame is held; lower spins faster |
 | `-f`, `--file`   | —       | read labels from a file, one per line          |
 

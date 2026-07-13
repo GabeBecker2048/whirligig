@@ -74,6 +74,12 @@ def test_empty_file(capsys, tmp_path):
 def test_radius_too_small(capsys):
     assert "radius" in run_error(capsys, ["-r", "1", "a", "b"])
 
+def test_radius_too_big(capsys):
+    assert "radius" in run_error(capsys, ["-r", "101", "a", "b"])
+
+def test_missing_file(capsys):
+    assert "can't read" in run_error(capsys, ["-f", "no/such/file.txt"])
+
 def test_negative_delay(capsys):
     assert "delay" in run_error(capsys, ["-d", "-1", "a", "b"])
 

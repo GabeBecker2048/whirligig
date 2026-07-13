@@ -69,6 +69,22 @@ def test_blank_labels_raise(bad):
     with pytest.raises(ValueError, match="empty or whitespace-only"):
         whirligig.spin(["fine", bad])
 
+@pytest.mark.parametrize("bad", [1, 0, -5, 101, 10_000])
+def test_radius_out_of_range_raises(bad):
+    with pytest.raises(ValueError, match="radius must be between 2 and 100"):
+        whirligig.spin(["a", "b"], radius=bad)
+
+@pytest.mark.parametrize("ok", [2, 100])
+def test_radius_bounds_are_inclusive(ok):
+    assert whirligig.spin(["a", "b"], radius=ok, delay=0) in ("a", "b")
+
+def test_negative_delay_raises():
+    with pytest.raises(ValueError, match="delay must not be negative"):
+        whirligig.spin(["a", "b"], delay=-0.1)
+
+def test_zero_delay_is_allowed():
+    assert whirligig.spin(["a", "b"], delay=0) in ("a", "b")
+
 
 # --- public API surface ---
 
@@ -94,6 +110,12 @@ def test_suggested_radius_is_minimal():
     fit = _smallest_fitting_radius(labels, 10)
     assert Wheel(fit, labels).fits()
     assert not Wheel(fit - 1, labels).fits()
+
+def test_too_many_labels_for_any_radius_says_so():
+    # more labels than even a MAX_RADIUS wheel can hold: no radius suggestion
+    labels = [f"label{i:03d}" for i in range(600)]
+    with pytest.raises(ValueError, match="fewer or shorter labels"):
+        whirligig.spin(labels, delay=0)
 
 @pytest.mark.parametrize(
     "labels",
@@ -149,6 +171,16 @@ def test_big_enough_terminal_animates(monkeypatch):
     assert "\x1b[?1049h" in frames  # entered the alternate screen
     assert "You got" in frames
     assert ANSI.sub("", frames).rstrip().endswith(f"You got {result}!")
+
+def test_zero_size_terminal_skips_the_check(monkeypatch):
+    # a fresh pty (and some CI ttys) reports 0x0: that means "size unknown",
+    # and must not be treated as a terminal too small for any wheel
+    stream = FakeTty()
+    monkeypatch.setattr(spinner, "animation_stream", lambda: stream)
+    monkeypatch.setattr(os, "get_terminal_size", lambda fd=None: os.terminal_size((0, 0)))
+    result = whirligig.spin(["a", "b"], radius=4, delay=0)
+    assert result in ("a", "b")
+    assert "\x1b[?1049h" in stream.getvalue()  # animation ran
 
 def test_unsized_stream_skips_the_check(monkeypatch):
     # a tty-ish stream with no real fd behind it (IDE consoles, test harnesses):
