@@ -1,21 +1,33 @@
 [project]
 name = "whirligig"
-version = "0.2.0"
-description = "A fun wheel spinner for python and CLI"
+version = "0.3.0"
+description = "Spin a colorful ASCII wheel of fortune in your terminal, from the CLI or Python"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
     { name = "GabeBecker2048" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 keywords = ["wheel", "spinner", "terminal", "ascii", "random", "picker"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
     "Topic :: Games/Entertainment",
 ]
+
+[project.scripts]
+whirligig = "whirligig.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.8.24,<0.9.0"]
