@@ -3,7 +3,7 @@ import random
 import sys
 
 from whirligig import __version__
-from whirligig.spinner import DELAY, WHEEL_RADIUS, spin
+from whirligig.spinner import DELAY, MAX_RADIUS, RADIUS, spin
 
 # CLI conveniences only -- the Python API just takes label lists
 PRESETS = {
@@ -37,7 +37,6 @@ def main(argv=None) -> int:
     parser.add_argument(
         "-f",
         "--file",
-        type=argparse.FileType("r"),
         metavar="FILE",
         help="read labels from FILE, one per line; blank lines are skipped, '-' reads stdin",
     )
@@ -45,8 +44,8 @@ def main(argv=None) -> int:
         "-r",
         "--radius",
         type=int,
-        default=WHEEL_RADIUS,
-        help=f"radius of the wheel, in characters (default: {WHEEL_RADIUS})",
+        default=RADIUS,
+        help=f"radius of the wheel, in characters, from 2 to {MAX_RADIUS} (default: {RADIUS})",
     )
     parser.add_argument(
         "-d",
@@ -64,25 +63,35 @@ def main(argv=None) -> int:
         # given nothing else, read labels from a piped/redirected stdin -- but
         # never from a tty, where blocking on EOF would look like a hang
         if sys.stdin is not None and not sys.stdin.closed and not sys.stdin.isatty():
-            args.file = sys.stdin
+            args.file = "-"
         else:
             parser.error(
                 "nothing to spin; pass labels (whirligig heads tails), pipe them in, or try --preset random"
             )
-    if args.radius < 2:
-        parser.error("--radius must be at least 2")
-    if args.delay < 0:
-        parser.error("--delay must not be negative")
 
     labels = args.labels
     if args.preset:
         labels = PRESETS[args.preset if args.preset != "random" else random.choice(list(PRESETS))]
     elif args.file:
-        labels = [label for label in (line.strip() for line in args.file) if label]
-        if args.file is not sys.stdin:
-            args.file.close()
+        if args.file == "-":
+            # read stdin without closing it: the isatty() checks later in
+            # spin() need it open; an absent/closed stdin (pythonw, a caller
+            # that consumed it) falls through to the "has no labels" error
+            stdin = sys.stdin
+            labels = []
+            if stdin is not None and not stdin.closed:
+                labels = [label for label in (line.strip() for line in stdin) if label]
+        else:
+            try:
+                # explicit utf-8
+                with open(args.file, encoding="utf-8") as f:
+                    labels = [label for label in (line.strip() for line in f) if label]
+            except OSError as e:
+                parser.error(f"can't read {args.file}: {e.strerror or e}")
+            except UnicodeDecodeError:
+                parser.error(f"{args.file} is not UTF-8; re-save it as UTF-8 (plain ASCII works too)")
         if not labels:
-            parser.error(f"{args.file.name} has no labels; expected one per line")
+            parser.error(f"{'<stdin>' if args.file == '-' else args.file} has no labels; expected one per line")
 
     try:
         spin(labels, radius=args.radius, delay=args.delay)

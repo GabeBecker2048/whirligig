@@ -2,7 +2,7 @@
 
 ## 0.4.0 — unreleased
 
-Hardened for release: input validation everywhere (empty or blank labels, overcrowded wheels, too-small terminals — all clear errors now), piped stdin without needing `-f -`, a `--version` flag, `whirligig.__version__` and a typed/documented Python API, the `spin()` parameter `w_radius` renamed to `radius`, and a test suite with CI across all supported platforms and Python versions.
+Hardened for release: input validation everywhere (empty or blank labels, overcrowded wheels, radius out of its new 2–100 range, negative delays, too-small terminals — all clear errors now), piped stdin without needing `-f -`, a `--version` flag, `whirligig.__version__` and a typed/documented Python API, the `spin()` parameter `w_radius` renamed to `radius`, `--file` moved off the deprecated `argparse.FileType`, and a test suite with CI across all supported platforms and Python versions.
 
 ## 0.3.0 — 2026-07-12 (git only, never published)
 
