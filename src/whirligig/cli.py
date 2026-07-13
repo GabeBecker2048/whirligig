@@ -83,10 +83,13 @@ def main(argv=None) -> int:
                 labels = [label for label in (line.strip() for line in stdin) if label]
         else:
             try:
-                with open(args.file) as f:
+                # explicit utf-8
+                with open(args.file, encoding="utf-8") as f:
                     labels = [label for label in (line.strip() for line in f) if label]
             except OSError as e:
                 parser.error(f"can't read {args.file}: {e.strerror or e}")
+            except UnicodeDecodeError:
+                parser.error(f"{args.file} is not UTF-8; re-save it as UTF-8 (plain ASCII works too)")
         if not labels:
             parser.error(f"{'<stdin>' if args.file == '-' else args.file} has no labels; expected one per line")
 

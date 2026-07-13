@@ -80,6 +80,16 @@ def test_radius_too_big(capsys):
 def test_missing_file(capsys):
     assert "can't read" in run_error(capsys, ["-f", "no/such/file.txt"])
 
+def test_utf8_file_labels_survive(capsys, tmp_path):
+    f = tmp_path / "cities.txt"
+    f.write_text("Café\nSão Paulo\n", encoding="utf-8")
+    assert run_ok(capsys, ["-d", "0", "-f", str(f)]) in ("Café", "São Paulo")
+
+def test_non_utf8_file_errors_cleanly(capsys, tmp_path):
+    f = tmp_path / "latin1.txt"
+    f.write_bytes(b"Caf\xe9\n")  # cp1252/latin-1 e-acute, invalid UTF-8
+    assert "not UTF-8" in run_error(capsys, ["-f", str(f)])
+
 def test_negative_delay(capsys):
     assert "delay" in run_error(capsys, ["-d", "-1", "a", "b"])
 
