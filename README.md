@@ -6,6 +6,8 @@
 
 Spin a colorful ASCII wheel of fortune in your terminal and let fate decide: what's for lunch, who reviews the PR, heads or tails.
 
+![whirligig spinning a wheel of lunch options and landing on Burgers](https://raw.githubusercontent.com/GabeBecker2048/whirligig/refs/heads/main/demo/demo.gif)
+
 ## Try it
 
 No install needed if you have [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/):
