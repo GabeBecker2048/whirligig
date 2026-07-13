@@ -16,7 +16,7 @@ Support policy: nothing past EOL. Windows 10 is the floor because that's where c
 uv sync                                 # create/refresh .venv from uv.lock
 uv run whirligig Pizza Sushi Poke       # run the CLI
 uv run whirligig -r 6 -d 0 heads tails  # small + zero-delay: the fastest way to eyeball a render change
-uv run python -m whirligig.spinner      # run the demo in __main__ (random dice/clock/alphabet/coin wheel)
+uv run whirligig -p random              # spin a random preset (coin/dice/clock/alphabet)
 uv build                                # build sdist + wheel
 ```
 
@@ -24,7 +24,7 @@ There is no test suite, linter, or formatter configured. Verification is visual:
 
 ## Architecture
 
-The rendering engine is all of `src/whirligig/spinner.py`. `__init__.py` re-exports `spin` as the sole public Python API; `cli.py` is a thin `argparse` wrapper behind the `whirligig` entry point, and it owns all CLI concerns (flag parsing, validation, exit codes) so that `spin()` stays a plain library function.
+The rendering engine is all of `src/whirligig/spinner.py`. `__init__.py` re-exports `spin` as the sole public Python API; `cli.py` is a thin `argparse` wrapper behind the `whirligig` entry point (also reachable as `python -m whirligig` via `__main__.py`), and it owns all CLI concerns — flag parsing, validation, exit codes, and the `PRESETS` dict — so that `spin()` stays a plain library function. Presets are deliberately CLI-only sugar: in Python, a list comprehension is the preset system.
 
 The two interfaces are named differently on purpose: `whirligig` on the CLI (a `$PATH` name must be unique and brand-like — and `spin` is already taken by Scientific Python's dev tool), `spin()` in Python (namespaced by the package, so a verb reads better at the call site). Documented usage is `import whirligig` / `whirligig.spin([...])`, which keeps brand-then-verb consistent across both. Don't "fix" this by renaming either one or by adding a `whirligig = spin` alias.
 
@@ -36,6 +36,7 @@ The render pipeline is a chain of `deepcopy`-and-return transforms so the base w
 
 Two consequences worth knowing before editing:
 - `add_labels` colorizes via `str.replace` on rendered rows, so labels that are substrings of each other, or that contain the padding/`*` characters, can mis-colorize. Coordinate math happens *before* the 3x stretch; the `x * 2` terms in `add_labels` compensate for it.
+- Label colors come from `wheel.colors`, a palette shuffled once in `Wheel.__init__` — random per spin, stable across the frames of one spin (deepcopy carries it). Color anything through `wheel.colors[i % len(wheel.colors)]`, never `Colors.colors` directly, or the result line and wheel will disagree.
 - The wheel is drawn to whichever stream `animation_stream()` picks — see the output contract below before adding any `print()`.
 
 **Terminal handling in `spin()`** is the fiddly part and is deliberately defensive. It enters the alternate screen buffer (`\033[?1049h`) with the cursor hidden, disables scroll-to-arrow-key reporting (`\033[?1007l`), and turns off tty `ECHO` via `termios` so mouse scrolls don't paint stray characters onto the wheel. All of that is restored in a `finally` (including a `tcflush` so buffered input doesn't leak into the shell prompt). `termios` is imported guardedly — it does not exist on Windows, where `os.system('')` is used instead to enable ANSI codes in the legacy console. Frames are drawn by jumping home (`\033[H`) and erasing to end-of-line (`\033[K`) per row rather than clearing the screen.

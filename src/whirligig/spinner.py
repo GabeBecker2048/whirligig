@@ -38,6 +38,9 @@ class Wheel:
         self.r = radius
         self.d = radius*2
         self.labels = labels
+        # a fresh shuffle of the palette per wheel: label colors are random on
+        # every spin, but stable across the frames of one spin
+        self.colors = random.sample(Colors.colors, k=len(Colors.colors))
         self.m = [" " * (self.d+1)] * (self.d+1)
         self.num_labels = len(labels)
         self.angles = [pi/(self.num_labels/2) * p for p in range(self.num_labels)]
@@ -84,8 +87,9 @@ class Wheel:
         # adds color
         for y in range(len(wheel.m)):
             for i, label in enumerate(wheel.labels):
-                wheel.m[y] = wheel.m[y].replace(f" {label} *", f" {Colors.colors[i%len(Colors.colors)]}{label} *{Colors.RESET}")
-                wheel.m[y] = wheel.m[y].replace(f"* {label} ", f"{Colors.colors[i%len(Colors.colors)]}* {label}{Colors.RESET} ")
+                color = wheel.colors[i % len(wheel.colors)]
+                wheel.m[y] = wheel.m[y].replace(f" {label} *", f" {color}{label} *{Colors.RESET}")
+                wheel.m[y] = wheel.m[y].replace(f"* {label} ", f"{color}* {label}{Colors.RESET} ")
 
         return wheel
 
@@ -108,7 +112,7 @@ def render_frame(wheel: Wheel, i: int) -> str:
     wheel = wheel.draw_line(i)
     wheel = wheel.add_labels()
     lines = str(wheel).split("\n")
-    lines.append(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
+    lines.append(f"You got {wheel.colors[i%len(wheel.colors)]}{wheel.labels[i]}{Colors.RESET}!")
     return "\n".join(lines)
 
 # draws the frame over the previous one, waits delay
@@ -196,11 +200,3 @@ def spin(labels: list[str], w_radius=WHEEL_RADIUS, delay=DELAY) -> str:
         print(labels[choice])
 
     return labels[choice]
-
-
-if __name__ == "__main__":
-    dice_roll = [str(i+1) for i in range(6)]
-    clock = [str((i+2)%12 + 1) for i in range(12)]
-    alphabet = list(map(chr, range(ord('a'), ord('z')+1)))
-    coin_flip = ["heads", "tails"]
-    spin(random.choice([dice_roll, clock, alphabet, coin_flip]))

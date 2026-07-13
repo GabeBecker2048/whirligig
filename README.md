@@ -32,6 +32,8 @@ Pass the choices as arguments; quote any that contain spaces.
 whirligig Pizza Sushi Mexican Thai "Chicken Wings" Poke Burgers
 ```
 
+Labels can repeat: each copy is its own slot on the wheel, so repeating a label is an easy way to weight the odds — `whirligig Pizza Pizza Sushi` lands on Pizza twice as often. All copies of the same label share one color, so they read as one choice spread across the wheel.
+
 | flag             | default | meaning                                        |
 |------------------|---------|------------------------------------------------|
 | `-r`, `--radius` | `10`    | radius of the wheel, in characters             |
@@ -40,6 +42,13 @@ whirligig Pizza Sushi Mexican Thai "Chicken Wings" Poke Burgers
 ```bash
 whirligig -d 0.3 Yes No Maybe        # milk the suspense
 whirligig -r 6 -d 0.02 heads tails   # just flip the coin already
+```
+
+A few wheels come ready-made — `coin`, `dice`, `clock`, and `alphabet` — and `random` spins one of them:
+
+```bash
+whirligig --preset dice
+whirligig -p random          # surprise me
 ```
 
 ### Scripting
