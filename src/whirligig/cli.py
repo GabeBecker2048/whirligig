@@ -63,6 +63,8 @@ def main(argv=None) -> int:
 
     try:
         spin(labels, w_radius=args.radius, delay=args.delay)
+    except ValueError as e:
+        parser.error(str(e))
     except KeyboardInterrupt:
         # spin() restores the terminal in a finally, so there is nothing to undo
         # here; just exit quietly instead of dumping a traceback on Ctrl-C
