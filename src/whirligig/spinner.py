@@ -147,8 +147,10 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
     # in the alternate screen, terminals turn mouse scrolls into arrow key
     # presses on stdin; we never read stdin, so stop the tty from echoing
     # them onto the wheel while we animate
+    # stdin can be closed (a caller that consumed it) or absent (pythonw);
+    # both just mean there is no tty echo to suppress
     old_tty = None
-    if termios is not None and sys.stdin.isatty():
+    if termios is not None and sys.stdin is not None and not sys.stdin.closed and sys.stdin.isatty():
         fd = sys.stdin.fileno()
         old_tty = termios.tcgetattr(fd)
         new_tty = termios.tcgetattr(fd)
