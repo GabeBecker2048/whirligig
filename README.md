@@ -34,11 +34,11 @@ whirligig Pizza Sushi Mexican Thai "Chicken Wings" Poke Burgers
 
 Labels can repeat: each copy is its own slot on the wheel, so repeating a label is an easy way to weight the odds — `whirligig Pizza Pizza Sushi` lands on Pizza twice as often. All copies of the same label share one color, so they read as one choice spread across the wheel.
 
-| flag             | default | meaning                                          |
-|------------------|---------|--------------------------------------------------|
-| `-r`, `--radius` | `10`    | radius of the wheel, in characters               |
-| `-d`, `--delay`  | `0.1`   | seconds each frame is held; lower spins faster   |
-| `-f`, `--file`   | —       | read labels from a file, one per line (`-` for stdin) |
+| flag             | default | meaning                                        |
+|------------------|---------|------------------------------------------------|
+| `-r`, `--radius` | `10`    | radius of the wheel, in characters             |
+| `-d`, `--delay`  | `0.1`   | seconds each frame is held; lower spins faster |
+| `-f`, `--file`   | —       | read labels from a file, one per line          |
 
 ```bash
 whirligig -d 0.3 Yes No Maybe        # milk the suspense
@@ -52,11 +52,17 @@ whirligig --preset dice
 whirligig -p random          # surprise me
 ```
 
-Keep a standing list in a file, one label per line, and spin it with `-f`. Blank lines are skipped, and `-f -` reads from stdin:
+Keep a standing list in a file, one label per line, and spin it with `-f`. Blank lines are skipped:
 
 ```bash
 whirligig -f lunch.txt
-grep -v alice teammates.txt | whirligig -f -   # alice is on vacation
+```
+
+Piped input is read the same way, no flag needed (`-f -` also works):
+
+```bash
+grep -v alice teammates.txt | whirligig   # alice is on vacation
+ls ~/Desktop | whirligig   # select a random file from your Desktop
 ```
 
 ### Scripting

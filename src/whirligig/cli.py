@@ -59,7 +59,14 @@ def main(argv=None) -> int:
     if sum(sources) > 1:
         parser.error("pass labels, --preset, or --file, but only one of them")
     if sum(sources) == 0:
-        parser.error("nothing to spin; pass labels (whirligig heads tails) or try --preset random")
+        # given nothing else, read labels from a piped/redirected stdin -- but
+        # never from a tty, where blocking on EOF would look like a hang
+        if sys.stdin is not None and not sys.stdin.closed and not sys.stdin.isatty():
+            args.file = sys.stdin
+        else:
+            parser.error(
+                "nothing to spin; pass labels (whirligig heads tails), pipe them in, or try --preset random"
+            )
     if args.radius < 2:
         parser.error("--radius must be at least 2")
     if args.delay < 0:
