@@ -1,15 +1,9 @@
 import argparse
 import random
 import sys
-from importlib.metadata import PackageNotFoundError, version
 
+from whirligig import __version__
 from whirligig.spinner import DELAY, WHEEL_RADIUS, spin
-
-try:
-    __version__ = version("whirligig")
-except PackageNotFoundError:
-    # running from a source tree without an install
-    __version__ = "unknown"
 
 # CLI conveniences only -- the Python API just takes label lists
 PRESETS = {
