@@ -63,7 +63,7 @@ class Wheel:
     def __str__(self) -> str:
         return "\n".join(self.m)
 
-    def add_labels(self, inplace = False):
+    def add_labels(self, inplace = False, strict = False):
         wheel = self if inplace else deepcopy(self)
 
         # adds whitespace
@@ -71,17 +71,24 @@ class Wheel:
         for y in range(len(wheel.m)):
             wheel.m[y] = wheel.m[y].replace(" ", "   ").replace("*", " * ")
             wheel.m[y] = whitespace + wheel.m[y] + whitespace
-        
-        # adds labels
+
+        # adds labels; every target cell should be blank -- when it isn't, this
+        # label is overwriting a neighbor's text or point marker, i.e. the
+        # wheel is too crowded for its radius, and `strict` turns that into an
+        # error instead of a silently garbled render
         for label, point in zip(wheel.labels, wheel.points):
             x, y = point
             if x<wheel.r or (x==wheel.r and y<wheel.r):
                 for i in range(len(label)):
                     ix = x-len(label) + i + len(whitespace) + (x * 2)
+                    if strict and wheel[ix, y] != " ":
+                        raise ValueError("labels overlap")
                     wheel[ix, y] = label[i]
             elif x>wheel.r or (x==wheel.r and y>wheel.r):
                 for i in range(len(label)):
                     ix = x+3 + i + len(whitespace) + (x * 2)
+                    if strict and wheel[ix, y] != " ":
+                        raise ValueError("labels overlap")
                     wheel[ix, y] = label[i]
 
         # adds color
@@ -92,6 +99,20 @@ class Wheel:
                 wheel.m[y] = wheel.m[y].replace(f"* {label} ", f"{color}* {label}{Colors.RESET} ")
 
         return wheel
+
+    # True when every label renders without clobbering a neighbor
+    def fits(self) -> bool:
+        try:
+            self.add_labels(strict=True)
+        except ValueError:
+            return False
+        return True
+
+    # the (columns, rows) of terminal a frame needs: label rows after the 3x
+    # stretch and side padding, plus the result line and the trailing newline
+    def frame_size(self) -> tuple[int, int]:
+        pad = len(max(self.labels, key=len)) + 1
+        return 3 * (self.d + 1) + 2 * pad, self.d + 3
 
     # given an angle and a scaler, returns a tuple of coords to the point
     def get_coords(self, idx: int, scaler: int) -> tuple[int, int]:
@@ -105,6 +126,24 @@ class Wheel:
             p = c.get_coords(idx, line_scaler)
             c[p] = "*"
         return c
+
+
+# the smallest radius at which these labels stop overlapping, or None if even
+# a huge wheel can't hold them; used only to make the overcrowding error useful
+def _smallest_fitting_radius(labels: list[str], start: int):
+    lo, hi = start, None
+    r = start
+    while hi is None and r < 1024:
+        r *= 2
+        if Wheel(r, labels).fits():
+            hi = r
+    while hi is not None and hi - lo > 1:
+        mid = (lo + hi) // 2
+        if Wheel(mid, labels).fits():
+            hi = mid
+        else:
+            lo = mid
+    return hi
 
 
 # renders one frame: the wheel with the spinner pointing at label i, plus the result line
@@ -186,17 +225,42 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
 ## THE MAIN FUNCTION ##
 # given a list, this function will create and print a spinning wheel ASCII
 # animation, and return the label it landed on
-def spin(labels: list[str], w_radius=WHEEL_RADIUS, delay=DELAY) -> str:
+def spin(labels: list[str], radius=WHEEL_RADIUS, delay=DELAY) -> str:
+    if not labels:
+        raise ValueError("labels must be a non-empty list; there is nothing to spin")
+
     # the renderer assumes every label occupies one row
     for label in labels:
         if any(c in label for c in "\n\r\t"):
             raise ValueError(f"label {label!r} contains a newline or tab, which would break the wheel's shape")
 
-    wheel = Wheel(w_radius, labels)
+    wheel = Wheel(radius, labels)
+
+    # too many labels for the radius means neighbors overwrite each other and
+    # the wheel renders garbled -- refuse up front, and point at a radius that
+    # works; checked even with no terminal so a command doesn't succeed in a
+    # pipeline but fail on a tty
+    if not wheel.fits():
+        fitting = _smallest_fitting_radius(labels, radius)
+        hint = f"increase the radius to {fitting} or more" if fitting else "use fewer or shorter labels"
+        raise ValueError(f"{len(labels)} labels overlap on a wheel of radius {radius}; {hint}")
+
     choice = random.randrange(wheel.num_labels)
 
     stream = animation_stream()
     if stream is not None:
+        # a frame wider or taller than the terminal wraps, and the \033[H
+        # redraws then ghost over the wrapped lines -- better to refuse
+        cols, rows = wheel.frame_size()
+        try:
+            term = os.get_terminal_size(stream.fileno())
+        except (ValueError, OSError):
+            term = None  # no real fd behind the stream; nothing to check
+        if term is not None and (cols > term.columns or rows > term.lines):
+            raise ValueError(
+                f"this wheel needs a {cols}x{rows} terminal but yours is {term.columns}x{term.lines}; "
+                "lower the radius, shorten the labels, or enlarge the window"
+            )
         animate(wheel, choice, delay, stream)
 
     # stdout's contract is the choice itself: when it is not a terminal something

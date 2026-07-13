@@ -1,8 +1,15 @@
 import argparse
 import random
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 from whirligig.spinner import DELAY, WHEEL_RADIUS, spin
+
+try:
+    __version__ = version("whirligig")
+except PackageNotFoundError:
+    # running from a source tree without an install
+    __version__ = "unknown"
 
 # CLI conveniences only -- the Python API just takes label lists
 PRESETS = {
@@ -20,6 +27,7 @@ def main(argv=None) -> int:
         description="Spin a wheel and pick one of the given labels at random.",
         epilog='example: whirligig Pizza Sushi Mexican Thai "Chicken Wings" Poke Other',
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "labels",
         nargs="*",
@@ -83,7 +91,7 @@ def main(argv=None) -> int:
             parser.error(f"{args.file.name} has no labels; expected one per line")
 
     try:
-        spin(labels, w_radius=args.radius, delay=args.delay)
+        spin(labels, radius=args.radius, delay=args.delay)
     except ValueError as e:
         parser.error(str(e))
     except KeyboardInterrupt:
