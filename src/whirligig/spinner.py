@@ -111,19 +111,31 @@ def render_frame(wheel: Wheel, i: int) -> str:
     lines.append(f"You got {Colors.colors[i%len(Colors.colors)]}{wheel.labels[i]}{Colors.RESET}!")
     return "\n".join(lines)
 
-# draws the frame over the previous one, waits DELAY
-def display(wheel: Wheel, i: int) -> None:
+# draws the frame over the previous one, waits delay
+def display(wheel: Wheel, i: int, delay=DELAY, stream=None) -> None:
+    stream = sys.stdout if stream is None else stream
     frame = render_frame(wheel, i)
     # \033[H jumps to the top-left of the screen; \033[K erases any leftover
     # characters from the previous frame on each line
-    print("\033[H" + "\n".join(line + "\033[K" for line in frame.split("\n")))
-    time.sleep(DELAY)
+    print("\033[H" + "\n".join(line + "\033[K" for line in frame.split("\n")), file=stream)
+    time.sleep(delay)
 
-## THE MAIN FUNCTION ##
-# given a list, this function will create and print a spinning wheel ASCII animation
-def spin(labels: list[str], w_radius=WHEEL_RADIUS):
-    wheel = Wheel(w_radius, labels)
 
+# the animation is a terminal effect, not data, so it only ever goes to a stream
+# that is a tty: stdout when it is one, stderr when stdout has been redirected
+# (the wheel still spins on screen while `$(whirligig ...)` captures the answer),
+# and nowhere at all when neither is -- in CI or under `whirligig ... &> file`
+# there is no terminal to draw on, so we skip straight to the result
+def animation_stream():
+    if sys.stdout.isatty():
+        return sys.stdout
+    if sys.stderr.isatty():
+        return sys.stderr
+    return None
+
+
+# runs the wheel animation on `stream`, landing on `choice`
+def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
     # enables ANSI escape codes in the legacy Windows console
     if os.name == 'nt':
         os.system('')
@@ -143,18 +155,18 @@ def spin(labels: list[str], w_radius=WHEEL_RADIUS):
     # hidden -- it has no scrollback, so scrolling can't break the redraws;
     # \033[?1007s + \033[?1007l saves then disables scroll-to-arrow-keys mode;
     # always restores the terminal state afterwards
-    print("\033[?1007s\033[?1007l\033[?1049h\033[?25l", end="")
+    print("\033[?1007s\033[?1007l\033[?1049h\033[?25l", end="", file=stream)
     try:
         # full rotations
         for j in range(random.randint(2, 5)):
             for i in range(wheel.num_labels):
-                display(wheel, i=i)
+                display(wheel, i=i, delay=delay, stream=stream)
 
-        # actual choice
-        for i in range(random.randint(1, wheel.num_labels)):
-            display(wheel, i=i)
+        # the partial rotation that lands on the choice
+        for i in range(choice + 1):
+            display(wheel, i=i, delay=delay, stream=stream)
     finally:
-        print("\033[?1049l\033[?1007r\033[?25h", end="")
+        print("\033[?1049l\033[?1007r\033[?25h", end="", file=stream)
         if old_tty is not None:
             # discards any input buffered during the spin (scrolls, keypresses)
             # so it doesn't leak into the shell prompt, then re-enables echo
@@ -163,7 +175,27 @@ def spin(labels: list[str], w_radius=WHEEL_RADIUS):
 
     # everything drawn in the alternate screen vanishes when it exits, so
     # reprint the final frame to the normal screen to keep the result visible
-    print(render_frame(wheel, i))
+    print(render_frame(wheel, choice), file=stream)
+
+## THE MAIN FUNCTION ##
+# given a list, this function will create and print a spinning wheel ASCII
+# animation, and return the label it landed on
+def spin(labels: list[str], w_radius=WHEEL_RADIUS, delay=DELAY) -> str:
+    wheel = Wheel(w_radius, labels)
+    choice = random.randrange(wheel.num_labels)
+
+    stream = animation_stream()
+    if stream is not None:
+        animate(wheel, choice, delay, stream)
+
+    # stdout's contract is the choice itself: when it is not a terminal something
+    # is capturing it, so it gets the bare label and nothing else -- no frames, no
+    # color. When it is a terminal, the animation above already announced the
+    # result, so printing it again would just be noise
+    if not sys.stdout.isatty():
+        print(labels[choice])
+
+    return labels[choice]
 
 
 if __name__ == "__main__":
