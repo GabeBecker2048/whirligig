@@ -33,6 +33,13 @@ def main(argv=None) -> int:
         help="spin a ready-made wheel instead of giving labels; 'random' picks one of the others",
     )
     parser.add_argument(
+        "-f",
+        "--file",
+        type=argparse.FileType("r"),
+        metavar="FILE",
+        help="read labels from FILE, one per line; blank lines are skipped, '-' reads stdin",
+    )
+    parser.add_argument(
         "-r",
         "--radius",
         type=int,
@@ -48,9 +55,10 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.labels and args.preset:
-        parser.error("pass labels or --preset, not both")
-    if not args.labels and not args.preset:
+    sources = [bool(args.labels), bool(args.preset), bool(args.file)]
+    if sum(sources) > 1:
+        parser.error("pass labels, --preset, or --file, but only one of them")
+    if sum(sources) == 0:
         parser.error("nothing to spin; pass labels (whirligig heads tails) or try --preset random")
     if args.radius < 2:
         parser.error("--radius must be at least 2")
@@ -60,6 +68,12 @@ def main(argv=None) -> int:
     labels = args.labels
     if args.preset:
         labels = PRESETS[args.preset if args.preset != "random" else random.choice(list(PRESETS))]
+    elif args.file:
+        labels = [label for label in (line.strip() for line in args.file) if label]
+        if args.file is not sys.stdin:
+            args.file.close()
+        if not labels:
+            parser.error(f"{args.file.name} has no labels; expected one per line")
 
     try:
         spin(labels, w_radius=args.radius, delay=args.delay)
