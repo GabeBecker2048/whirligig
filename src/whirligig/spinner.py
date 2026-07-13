@@ -10,7 +10,10 @@ try:
 except ImportError:
     termios = None  # Windows has no termios (and no scroll-to-arrow-keys behavior)
 
-WHEEL_RADIUS = 10
+RADIUS = 10
+# huge wheels aren't just useless (no terminal is 200+ rows tall), the O(r^2)
+# canvas makes them a memory footgun, so the radius is capped
+MAX_RADIUS = 100
 DELAY = 0.1
 
 class Colors:
@@ -129,12 +132,12 @@ class Wheel:
 
 
 # the smallest radius at which these labels stop overlapping, or None if even
-# a huge wheel can't hold them; used only to make the overcrowding error useful
+# a MAX_RADIUS wheel can't hold them; used only to make the overcrowding error useful
 def _smallest_fitting_radius(labels: list[str], start: int) -> int | None:
     lo, hi = start, None
     r = start
-    while hi is None and r < 1024:
-        r *= 2
+    while hi is None and r < MAX_RADIUS:
+        r = min(r * 2, MAX_RADIUS)
         if Wheel(r, labels).fits():
             hi = r
     while hi is not None and hi - lo > 1:
@@ -223,7 +226,7 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
     print(render_frame(wheel, choice), file=stream)
 
 ## THE MAIN FUNCTION ##
-def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) -> str:
+def spin(labels: list[str], radius: int = RADIUS, delay: float = DELAY) -> str:
     """Spin an ASCII wheel of the given labels and return the winner.
 
     The wheel is animated on the terminal — on stdout, or on stderr when
@@ -235,7 +238,7 @@ def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) ->
     Args:
         labels: the choices on the wheel. Duplicates each get their own
             slot (weighting the odds) and share one color.
-        radius: wheel radius in characters (default 10).
+        radius: wheel radius in characters, from 2 to 100 (default 10).
         delay: seconds each animation frame is held (default 0.1);
             0 skips straight to the result.
 
@@ -244,8 +247,9 @@ def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) ->
 
     Raises:
         ValueError: if ``labels`` is empty, a label is blank or contains a
-            newline or tab, the labels overlap on a wheel of this radius,
-            or the terminal is too small to hold a frame.
+            newline or tab, ``radius`` or ``delay`` is out of range, the
+            labels overlap on a wheel of this radius, or the terminal is
+            too small to hold a frame.
     """
     if not labels:
         raise ValueError("labels must be a non-empty list; there is nothing to spin")
@@ -256,6 +260,11 @@ def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) ->
             raise ValueError("labels must not be empty or whitespace-only; a blank slot would be unreadable on the wheel")
         if any(c in label for c in "\n\r\t"):
             raise ValueError(f"label {label!r} contains a newline or tab, which would break the wheel's shape")
+
+    if not 2 <= radius <= MAX_RADIUS:
+        raise ValueError(f"radius must be between 2 and {MAX_RADIUS}")
+    if delay < 0:
+        raise ValueError("delay must not be negative")
 
     wheel = Wheel(radius, labels)
 
@@ -279,6 +288,8 @@ def spin(labels: list[str], radius: int = WHEEL_RADIUS, delay: float = DELAY) ->
             term = os.get_terminal_size(stream.fileno())
         except (ValueError, OSError):
             term = None  # no real fd behind the stream; nothing to check
+        if term is not None and (term.columns <= 0 or term.lines <= 0):
+            term = None  # some environments report 0x0: size unknown, not tiny
         if term is not None and (cols > term.columns or rows > term.lines):
             raise ValueError(
                 f"this wheel needs a {cols}x{rows} terminal but yours is {term.columns}x{term.lines}; "
