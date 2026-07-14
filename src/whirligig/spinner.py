@@ -213,6 +213,11 @@ def animate(wheel: Wheel, choice: int, delay: float, stream) -> None:
         # the partial rotation that lands on the choice
         for i in range(choice + 1):
             display(wheel, i=i, delay=delay, stream=stream)
+
+        # hold the winning frame so the reveal doesn't vanish instantly;
+        # delay=0 means "skip straight to the result", so no hold there
+        if delay:
+            time.sleep(1)
     finally:
         print("\033[?1049l\033[?1007r\033[?25h", end="", file=stream)
         if old_tty is not None:
