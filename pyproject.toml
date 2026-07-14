@@ -1,6 +1,6 @@
 [project]
 name = "whirligig"
-version = "0.4.0"
+version = "0.5.0"
 description = "Spin a colorful ASCII wheel of fortune in your terminal, from the CLI or Python"
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0 — 2026-07-13
+
+The winning frame is now held on screen for a second before the animation view closes, so the result no longer vanishes the instant the wheel lands. `--delay 0` still skips straight to the result with no hold.
+
 ## 0.4.0 — 2026-07-13
 
 Hardened for release: input validation everywhere (empty or blank labels, overcrowded wheels, radius out of its new 2–100 range, negative delays, too-small terminals — all clear errors now), piped stdin without needing `-f -`, a `--version` flag, `whirligig.__version__` and a typed/documented Python API, the `spin()` parameter `w_radius` renamed to `radius`, `--file` moved off the deprecated `argparse.FileType`, and a test suite with CI across all supported platforms and Python versions.
