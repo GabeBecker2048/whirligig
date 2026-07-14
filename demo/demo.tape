@@ -17,6 +17,15 @@ Set Width 980
 Set Height 520
 Set Padding 16
 
+# the venv's activate script exports the full shell PS1, which leaks into
+# vhs's recording shell; reset it to vhs's default prompt off-camera
+Hide
+Type `PS1='\[\e[38;2;90;86;224m\]> \[\e[0m\]'`
+Enter
+Type "clear"
+Enter
+Show
+
 Type 'whirligig Pizza Sushi Tacos Thai "Chicken Wings" Poke Burgers'
 Sleep 800ms
 Enter
