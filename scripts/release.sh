@@ -4,8 +4,6 @@
 # and must never be committed.
 set -euo pipefail
 
-cd "$(dirname "$0")"
-
 if [[ ! -f .env ]]; then
     echo "error: no .env file next to this script (expected it to contain PYPI_TOKEN=...)" >&2
     exit 1
