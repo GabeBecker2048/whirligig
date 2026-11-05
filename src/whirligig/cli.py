@@ -94,13 +94,20 @@ def main(argv=None) -> int:
             parser.error(f"{'<stdin>' if args.file == '-' else args.file} has no labels; expected one per line")
 
     try:
-        spin(labels, radius=args.radius, delay=args.delay)
+        result = spin(labels, radius=args.radius, delay=args.delay)
     except ValueError as e:
         parser.error(str(e))
     except KeyboardInterrupt:
         # spin() restores the terminal in a finally, so there is nothing to undo
         # here; just exit quietly instead of dumping a traceback on Ctrl-C
         return 130
+
+    # stdout is data: when it is not a terminal something is capturing it, so it
+    # gets the bare label and nothing else -- no frames, no color. When it is a
+    # terminal, the animation already announced the result, so printing it again
+    # would just be noise
+    if not sys.stdout.isatty():
+        print(result)
     return 0
 
 
