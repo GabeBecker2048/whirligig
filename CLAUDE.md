@@ -62,7 +62,7 @@ There's deliberately no `--color` / `NO_COLOR` handling yet: color only reaches 
 
 ## Releasing
 
-`./scripts/release.sh` is the whole release. It reads the version from `pyproject.toml`, runs the same checks the workflow will (on `main`, clean tree, same commit as `origin/main`, tag unused locally and on origin, a `## X.Y.Z` section in `CHANGELOG.md`, `uv.lock` current, tests green), and pushes an annotated tag `vX.Y.Z`. `--dry-run` runs the checks and prints the notes without pushing. No tokens are involved.
+`./scripts/release.sh X.Y.Z` is the whole release. It checks that the version matches `pyproject.toml`, that `CHANGELOG.md` has a `## X.Y.Z` section, that you are on `main` at the same commit as `origin/main` with a clean tree, that the tag is unused locally and on origin, and that `uv.lock` is current, then pushes an annotated tag `vX.Y.Z` without asking. `--dry-run` runs the checks and prints the notes without pushing. It runs no tests: CI ran them on the PR, and the release workflow runs them again. No tokens are involved. The script is identical in anchorless, chesssnake and whirligig; change all three together.
 
 `.github/workflows/release.yml` fires on the tag and, in order: **checks** that the tag matches `pyproject.toml`, extracts the CHANGELOG section as the release notes, runs the suite, builds the sdist and wheel, runs `twine check`, and installs the wheel into a clean venv to run `whirligig --version` and a headless spin from it; **publishes to PyPI** through trusted publishing (the `pypi` environment); then **creates the GitHub release** last, with the notes and the built artifacts attached, so the release page only exists once PyPI has the version.
 
