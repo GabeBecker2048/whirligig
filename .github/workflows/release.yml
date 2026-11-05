@@ -1,0 +1,120 @@
+name: release
+
+# Pushing a tag vX.Y.Z (scripts/release.sh does it) publishes that version: the
+# package to PyPI, then a GitHub release with its CHANGELOG entry as the notes.
+# No tokens: PyPI trusts this workflow (trusted publishing), and the release is
+# created with the automatic GITHUB_TOKEN. The one-time PyPI-side setup is in
+# CLAUDE.md under "Releasing".
+#
+# The tag is the trigger, rather than a GitHub release, so that the release page
+# is created by the same run that built the artifacts. There is no window in
+# which a release exists but nothing was published.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that can say "no" happens here, before anything is published.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+
+      # The tag is the only thing typed by hand during a release. A tag that
+      # disagrees with pyproject.toml would publish a version nobody meant, or
+      # be rejected by PyPI as a duplicate.
+      - name: The tag matches pyproject.toml and has a CHANGELOG entry
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          grep -qE "^version = \"${version}\"$" pyproject.toml \
+            || { echo "::error::tag ${GITHUB_REF_NAME} doesn't match the version in pyproject.toml"; exit 1; }
+          awk -v v="$version" '
+            $0 ~ "^## " v "( |$)" {on=1; next}
+            on && /^## / {exit}
+            on {print}' CHANGELOG.md | sed -e '/./,$!d' > notes.md
+          test -s notes.md || { echo "::error::no '## ${version}' section in CHANGELOG.md"; exit 1; }
+          echo "Release notes:"; cat notes.md
+
+      - run: uv sync --locked
+      - run: uv run pytest -q
+      - run: uv build
+
+      # Catches a README that PyPI will refuse to render, which is otherwise
+      # only discovered after the upload has already succeeded.
+      - name: Check the metadata renders
+        run: uv run --no-project --with twine twine check dist/*
+
+      # The suite runs against the source tree. Only installing the artifact
+      # proves the wheel has everything (the entry point, py.typed, ...).
+      - name: The built wheel actually works
+        run: |
+          set -euo pipefail
+          uv venv /tmp/relcheck
+          uv pip install --python /tmp/relcheck/bin/python dist/*.whl
+          test "$(/tmp/relcheck/bin/whirligig --version)" = "whirligig ${GITHUB_REF_NAME#v}"
+          # No tty here, so this is the headless path: the bare label on stdout.
+          out="$(/tmp/relcheck/bin/whirligig -d 0 heads tails)"
+          test "$out" = heads -o "$out" = tails
+          /tmp/relcheck/bin/python -c "
+          import whirligig
+          assert whirligig.__version__ == '${GITHUB_REF_NAME#v}', whirligig.__version__
+          assert whirligig.spin(['a', 'b'], radius=4, delay=0) in ('a', 'b')
+          print('wheel ok')
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          path: notes.md
+
+  pypi:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/whirligig/
+    permissions:
+      id-token: write      # mint the OIDC token trusted publishing exchanges
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        # No `skip-existing`: re-publishing a version already on PyPI should
+        # fail loudly, not succeed quietly and leave you thinking it shipped.
+
+  # Last, so the release page only appears once PyPI has the version.
+  github-release:
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write      # create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "whirligig ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag --latest
