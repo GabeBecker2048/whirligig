@@ -32,6 +32,14 @@ def run_error(capsys, argv):
 def test_positional_labels(capsys):
     assert run_ok(capsys, ["-d", "0", "heads", "tails"]) in ("heads", "tails")
 
+def test_redirected_stdout_gets_exactly_the_bare_label(capsys):
+    # the stdout contract: when stdout is not a tty, it gets the label and
+    # nothing else -- no frames, no color, no trailing noise
+    assert main(["-d", "0", "only"]) == 0
+    out = capsys.readouterr()
+    assert out.out == "only\n"
+    assert out.err == ""
+
 def test_preset(capsys):
     assert run_ok(capsys, ["-d", "0", "-p", "dice"]) in PRESETS["dice"]
 

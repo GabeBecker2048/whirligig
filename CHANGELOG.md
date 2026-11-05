@@ -1,5 +1,11 @@
 # Changelog
 
+All notable changes, newest first. Versions follow [semantic versioning](https://semver.org/).
+
+## 1.0.0 — 2026-11-05
+
+First stable release: the CLI flags, the `spin()` signature and the stdout contract are now covered by semantic versioning. One behavior change for Python callers: `spin()` no longer prints the winning label to stdout when stdout is redirected. It only returns it, and the `whirligig` command does the printing, so `$(whirligig ...)` captures exactly what it did before. Also fixed: labels that are substrings of each other (`Pizza`, `Pizza Hut`) no longer steal each other's color, and landing on a repeated label shows the same color on the result line as on the wheel. Releases are now published to PyPI and GitHub by CI from a pushed tag.
+
 ## 0.5.0 — 2026-07-13
 
 The winning frame is now held on screen for a second before the animation view closes, so the result no longer vanishes the instant the wheel lands. `--delay 0` still skips straight to the result with no hold.

@@ -36,8 +36,8 @@ The render pipeline is a chain of `deepcopy`-and-return transforms so the base w
 `Wheel` → `draw_line(i)` (spinner arm from center to point `i`) → `add_labels()` (horizontally stretches the grid 3x, writes label text to the left or right of each point depending on which half of the circle it's in, then colorizes by string-replacing `" {label} *"` / `"* {label} "` patterns) → `str()` → `render_frame` appends the "You got X!" line.
 
 Two consequences worth knowing before editing:
-- `add_labels` colorizes via `str.replace` on rendered rows, so labels that are substrings of each other, or that contain the padding/`*` characters, can mis-colorize. Coordinate math happens *before* the 3x stretch; the `x * 2` terms in `add_labels` compensate for it.
-- Label colors come from `wheel.colors`, a palette shuffled once in `Wheel.__init__` — random per spin, stable across the frames of one spin (deepcopy carries it). Color anything through `wheel.colors[i % len(wheel.colors)]`, never `Colors.colors` directly, or the result line and wheel will disagree.
+- `add_labels` colorizes by position: it records the span (text plus the point's `*` marker) of each label as it places it, then wraps those spans in escape codes right-to-left per row, since inserting codes shifts everything after them. Never colorize by searching rows for label text — that was the old approach, and labels that were substrings of each other (`Pizza`, `Pizza Hut`) stole each other's color. Coordinate math happens *before* the 3x stretch; an original column `x` lands at `pad + 3x`, marker at `pad + 3x + 1`.
+- Label colors come from `wheel.colors`, a palette shuffled once in `Wheel.__init__` — random per spin, stable across the frames of one spin (deepcopy carries it). Color anything through `wheel.color(i)`, never `Colors.colors` or `wheel.colors[i]` directly: it keys the color by label text, so copies of a repeated label share one color and the result line always matches the wheel.
 - The wheel is drawn to whichever stream `animation_stream()` picks — see the output contract below before adding any `print()`.
 
 **Validation in `spin()`** happens before anything is drawn, in this order: labels must be a non-empty list of non-blank, single-line strings; radius must be within 2–`MAX_RADIUS` (100 — the O(r²) canvas makes big wheels a memory footgun) and delay non-negative (0 is legal and documented — don't add a floor); `Wheel.fits()` dry-runs label placement (`add_labels(strict=True)`) and refuses overcrowded wheels with a smallest-fitting-radius suggestion capped at `MAX_RADIUS` (checked even headless, so a command doesn't succeed in a pipeline but fail on a tty); and when there is an animation stream, `frame_size()` is compared against `os.get_terminal_size()` so an oversized frame raises instead of wrapping and ghosting (the failure mode behind the demo-GIF glitches).
@@ -48,7 +48,7 @@ Since the alternate screen is discarded on exit, `spin()` reprints the final fra
 
 ## Output contract
 
-`spin()` decides the winner up front (`random.randrange`) and returns the label; the animation is then played *to land on* that choice. Where the bytes go is decided by `animation_stream()`:
+`spin()` decides the winner up front (`random.randrange`) and returns the label; the animation is then played *to land on* that choice. `spin()` itself never prints the result — it is a library function and the caller's stdout is not its to write to — so the "stdout gets" column below is implemented in `cli.py`, after `spin()` returns. Where the animation bytes go is decided by `animation_stream()`:
 
 | stdout | stderr | animation | stdout gets |
 | --- | --- | --- | --- |
@@ -59,3 +59,15 @@ Since the alternate screen is discarded on exit, `spin()` reprints the final fra
 The rule behind the table: **the animation is a terminal effect, stdout is data.** stdout is only ever the chosen label, plain and uncolored, and only when it's redirected — which is exactly when someone is capturing it (`LUNCH=$(whirligig ...)`). Interactive output stays unduplicated. Anything that writes frames, ANSI escapes, or the "You got X!" line must go to the stream from `animation_stream()`, never to a bare `print()`, or it will corrupt the pipe.
 
 There's deliberately no `--color` / `NO_COLOR` handling yet: color only reaches a tty by construction, so it isn't leaking anywhere. It'd become worth adding if someone wants `| less -R` to stay colorized.
+
+## Releasing
+
+`./scripts/release.sh` is the whole release. It reads the version from `pyproject.toml`, runs the same checks the workflow will (on `main`, clean tree, same commit as `origin/main`, tag unused locally and on origin, a `## X.Y.Z` section in `CHANGELOG.md`, `uv.lock` current, tests green), and pushes an annotated tag `vX.Y.Z`. `--dry-run` runs the checks and prints the notes without pushing. No tokens are involved.
+
+`.github/workflows/release.yml` fires on the tag and, in order: **checks** that the tag matches `pyproject.toml`, extracts the CHANGELOG section as the release notes, runs the suite, builds the sdist and wheel, runs `twine check`, and installs the wheel into a clean venv to run `whirligig --version` and a headless spin from it; **publishes to PyPI** through trusted publishing (the `pypi` environment); then **creates the GitHub release** last, with the notes and the built artifacts attached, so the release page only exists once PyPI has the version.
+
+Per release, in a pull request: bump `version` in `pyproject.toml`, run `uv lock`, add a `## X.Y.Z — YYYY-MM-DD` section (a sentence or two) to the top of `CHANGELOG.md`. Merge, then run the script from an up-to-date `main`.
+
+One-time PyPI setup (already done if a release has shipped this way): on <https://pypi.org/manage/project/whirligig/settings/publishing/> add a trusted publisher with owner `GabeBecker2048`, repository `whirligig`, workflow `release.yml`, environment `pypi`. The environment name must match the workflow's `environment: name: pypi`.
+
+If it goes wrong: a tag/version mismatch or a failing test stops the run before anything is published, so delete the tag (`git push origin :refs/tags/vX.Y.Z`, `git tag -d vX.Y.Z`), fix, and rerun. PyPI never accepts a version twice, even after deletion, so a bad release that already uploaded gets yanked on PyPI and followed by the next patch version.
