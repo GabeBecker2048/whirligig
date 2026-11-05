@@ -66,40 +66,51 @@ class Wheel:
     def __str__(self) -> str:
         return "\n".join(self.m)
 
+    # the color of label i. Copies of the same label share the first copy's
+    # color, so a repeated label reads as one choice spread across the wheel;
+    # the wheel and the result line both go through here so they always agree
+    def color(self, i: int) -> str:
+        first = self.labels.index(self.labels[i])
+        return self.colors[first % len(self.colors)]
+
     def add_labels(self, inplace = False, strict = False):
         wheel = self if inplace else deepcopy(self)
 
-        # adds whitespace
-        whitespace = " " * (len(max(wheel.labels, key=len)) + 1)
+        # stretches the grid 3x so labels have room, and pads each side by the
+        # longest label; an original column x lands at pad + 3x, with a point's
+        # "*" marker in the middle of its triple at pad + 3x + 1
+        pad = len(max(wheel.labels, key=len)) + 1
+        whitespace = " " * pad
         for y in range(len(wheel.m)):
-            wheel.m[y] = wheel.m[y].replace(" ", "   ").replace("*", " * ")
-            wheel.m[y] = whitespace + wheel.m[y] + whitespace
+            wheel.m[y] = whitespace + wheel.m[y].replace(" ", "   ").replace("*", " * ") + whitespace
 
-        # adds labels; every target cell should be blank -- when it isn't, this
-        # label is overwriting a neighbor's text or point marker, i.e. the
-        # wheel is too crowded for its radius, and `strict` turns that into an
-        # error instead of a silently garbled render
-        for label, point in zip(wheel.labels, wheel.points):
-            x, y = point
-            if x<wheel.r or (x==wheel.r and y<wheel.r):
-                for i in range(len(label)):
-                    ix = x-len(label) + i + len(whitespace) + (x * 2)
-                    if strict and wheel[ix, y] != " ":
-                        raise ValueError("labels overlap")
-                    wheel[ix, y] = label[i]
-            elif x>wheel.r or (x==wheel.r and y>wheel.r):
-                for i in range(len(label)):
-                    ix = x+3 + i + len(whitespace) + (x * 2)
-                    if strict and wheel[ix, y] != " ":
-                        raise ValueError("labels overlap")
-                    wheel[ix, y] = label[i]
+        # adds labels, to the left of the marker on the left half of the wheel
+        # and to the right of it on the right half; every target cell should be
+        # blank -- when it isn't, this label is overwriting a neighbor's text or
+        # point marker, i.e. the wheel is too crowded for its radius, and
+        # `strict` turns that into an error instead of a silently garbled render
+        spans = []  # (label index, row, start, end): the cells to color, text and marker
+        for i, (label, (x, y)) in enumerate(zip(wheel.labels, wheel.points)):
+            marker = pad + 3 * x + 1
+            if x < wheel.r or (x == wheel.r and y < wheel.r):
+                text = marker - 1 - len(label)   # "label *"
+                spans.append((i, y, text, marker + 1))
+            else:
+                text = marker + 2                # "* label"
+                spans.append((i, y, marker, text + len(label)))
+            for k, ch in enumerate(label):
+                if strict and wheel[text + k, y] != " ":
+                    raise ValueError("labels overlap")
+                wheel[text + k, y] = ch
 
-        # adds color
-        for y in range(len(wheel.m)):
-            for i, label in enumerate(wheel.labels):
-                color = wheel.colors[i % len(wheel.colors)]
-                wheel.m[y] = wheel.m[y].replace(f" {label} *", f" {color}{label} *{Colors.RESET}")
-                wheel.m[y] = wheel.m[y].replace(f"* {label} ", f"{color}* {label}{Colors.RESET} ")
+        # adds color by position rather than by searching rows for the label
+        # text, so a label that is a substring of another ("Pizza", "Pizza Hut")
+        # can't steal its neighbor's color. Inserting escape codes lengthens a
+        # row, so each row is colored right to left to keep the untouched
+        # spans' columns valid
+        for i, y, start, end in sorted(spans, key=lambda span: span[2], reverse=True):
+            row = wheel.m[y]
+            wheel.m[y] = row[:start] + wheel.color(i) + row[start:end] + Colors.RESET + row[end:]
 
         return wheel
 
@@ -154,7 +165,7 @@ def render_frame(wheel: Wheel, i: int) -> str:
     wheel = wheel.draw_line(i)
     wheel = wheel.add_labels()
     lines = str(wheel).split("\n")
-    lines.append(f"You got {wheel.colors[i%len(wheel.colors)]}{wheel.labels[i]}{Colors.RESET}!")
+    lines.append(f"You got {wheel.color(i)}{wheel.labels[i]}{Colors.RESET}!")
     return "\n".join(lines)
 
 # draws the frame over the previous one, waits delay
@@ -236,9 +247,8 @@ def spin(labels: list[str], radius: int = RADIUS, delay: float = DELAY) -> str:
 
     The wheel is animated on the terminal — on stdout, or on stderr when
     stdout is redirected, or not at all when neither is a terminal — and
-    lands on a uniformly random label. When stdout is redirected, the bare
-    winning label is also printed to it, so ``$(whirligig ...)`` captures
-    the result while the animation plays.
+    lands on a uniformly random label. Nothing but the animation is written:
+    the result is only returned.
 
     Args:
         labels: the choices on the wheel. Duplicates each get their own
@@ -302,11 +312,6 @@ def spin(labels: list[str], radius: int = RADIUS, delay: float = DELAY) -> str:
             )
         animate(wheel, choice, delay, stream)
 
-    # stdout's contract is the choice itself: when it is not a terminal something
-    # is capturing it, so it gets the bare label and nothing else -- no frames, no
-    # color. When it is a terminal, the animation above already announced the
-    # result, so printing it again would just be noise
-    if not sys.stdout.isatty():
-        print(labels[choice])
-
+    # the result is returned, never printed: a library function has no business
+    # writing to its caller's stdout. The CLI prints it when stdout is redirected
     return labels[choice]

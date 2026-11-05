@@ -1,8 +1,7 @@
 """Tests for the spin() library API and the rendering engine.
 
 Under pytest neither stdout nor stderr is a tty, so by the output contract the
-animation is skipped and the bare label lands on stdout -- which makes the
-whole contract testable headlessly.
+animation is skipped -- which makes the whole contract testable headlessly.
 """
 
 import io
@@ -45,11 +44,13 @@ def test_single_label_wins():
 def test_duplicate_labels_are_separate_slots():
     assert whirligig.spin(["dup", "dup"], delay=0) == "dup"
 
-def test_redirected_stdout_gets_bare_label(capsys):
+def test_library_writes_nothing_to_the_callers_streams(capsys):
+    # the label is returned, not printed: printing it is the CLI's job, so a
+    # Python script that calls spin() under a pipe gets no surprise output
     result = whirligig.spin(LUNCH, delay=0)
+    assert result in LUNCH
     out = capsys.readouterr()
-    assert out.out == result + "\n"
-    assert "\x1b[" not in out.out  # no color codes in captured data
+    assert out.out == ""
     assert out.err == ""  # no tty anywhere: animation fully skipped
 
 
@@ -146,6 +147,60 @@ def test_frame_size_matches_rendered_frame():
     lines = ANSI.sub("", spinner.render_frame(wheel, 0)).splitlines()
     assert len(lines) == rows - 1  # frame_size reserves a row for the trailing newline
     assert all(len(line) == cols for line in lines[:-1])  # wheel rows are padded to width
+
+COLORED = re.compile(r"(\x1b\[[0-9;]+m)([^\x1b]*)\x1b\[0m")
+
+
+def colored_segments(frame: str) -> list[tuple[str, str]]:
+    """(color code, text) for every colored run in a frame, wheel rows then result line."""
+    return COLORED.findall(frame)
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        ["Pizza", "Pizza Hut", "Sushi", "Thai"],       # one label is a prefix of another
+        ["Thai", "Thai Basil", "Pad Thai"],            # prefix and suffix
+        ["a", "aa", "aaa", "b", "bb"],                 # nested substrings
+    ],
+)
+def test_substring_labels_each_get_their_own_color(labels):
+    wheel = Wheel(10, labels)
+    for i, label in enumerate(labels):
+        frame = spinner.render_frame(wheel, i)
+        *rows, result = colored_segments(frame)
+        # the wheel's colored runs are exactly one per label, each wrapping its own
+        # text (plus the point marker) in that label's color -- no run contains a
+        # neighbor's text, and no label text is left outside a colored run
+        assert len(rows) == len(labels)
+        for code, text in rows:
+            owner = text.replace("*", "").strip()
+            assert owner in labels
+            assert code == wheel.color(labels.index(owner))
+        assert sorted(text.replace("*", "").strip() for _, text in rows) == sorted(labels)
+        assert result == (wheel.color(i), label)
+        assert ANSI.sub("", frame).count(label) >= 1
+
+
+def test_duplicate_labels_share_a_color_and_the_result_line_agrees():
+    labels = ["Pizza", "Pizza", "Sushi"]
+    wheel = Wheel(10, labels)
+    assert wheel.color(0) == wheel.color(1) != wheel.color(2)
+    for i in range(len(labels)):
+        *rows, result = colored_segments(spinner.render_frame(wheel, i))
+        pizza_codes = {code for code, text in rows if "Pizza" in text}
+        assert pizza_codes == {wheel.color(0)}
+        assert result == (wheel.color(i), labels[i])
+
+
+def test_arm_is_never_colored():
+    # the spinner arm shares the "*" glyph with the point markers; only the one
+    # marker beside each label belongs to a colored run
+    wheel = Wheel(10, LUNCH)
+    for i in range(len(LUNCH)):
+        *rows, _ = colored_segments(spinner.render_frame(wheel, i))
+        assert all(text.count("*") == 1 for _, text in rows)
+
 
 def test_base_wheel_untouched_by_rendering():
     wheel = Wheel(6, ["a", "b", "c"])
